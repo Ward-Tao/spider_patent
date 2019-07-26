@@ -17,7 +17,7 @@ url = 'http://pss-system.cnipa.gov.cn/sipopublicsearch/portal/uiIndex.shtml'
 
 df = pd.read_csv('test.csv', index_col=0)
 li = df.set_index('公司全称').to_dict()['已发行股票']
-# li = ['平安银行股份有限公司', '万科企业股份有限公司']
+# li = [ '宝山钢铁股份有限公司']
 
 chrome_options = webdriver.ChromeOptions()
 # chrome_options.add_argument('--headless')
@@ -49,7 +49,17 @@ for each in tqdm(li):
         page = int(re.findall(r'共 (.*?) 页',s)[0])
         num = int(re.findall(r'共 .*? 页 (.*?) ?条',s)[0])
         df = pd.DataFrame(columns=['公司','代码','标题','申请日','申请号','公开号','公开日','ipc1','ipc2'])
-        for i in range(page):
+
+        with open('log/log.txt') as f:
+            try:
+                bp = int(f.read())
+                df = df.append(pd.read_csv('log/temp.csv',index_col=0),ignore_index=True)
+                nw = False
+            except ValueError:
+                bp = 0
+                nw = True
+
+        for i in range(bp,page):
             # df = df.append(pd.read_html(browser.page_source),ignore_index=True)
             html = browser.page_source
             doc = pq(html)
@@ -88,10 +98,17 @@ for each in tqdm(li):
             # sqr1 = list(map(lambda x : x.text_content(),sqr1))
             t = pd.DataFrame([title,sqh,sqr,gkh,gkr,ipc1,ipc2]).T
             t.columns = ['标题','申请日','申请号','公开日','公开号','ipc1','ipc2']
-            df = df.append(t,ignore_index=True)
-
-            browser.execute_script("$('#page_top > div > div > div > a:nth-child(3) > img').click()")
-
+            if nw:
+                df = df.append(t,ignore_index=True)
+                df.to_csv('log/temp.csv')
+                with open('log/log.txt','w') as f:
+                    f.write(str(i))
+            nw = True
+            # browser.execute_script("$('#page_top > div > div > div > a:nth-child(3) > img').click()")
+            myinput = browser.find_element_by_id('txt')
+            myinput.clear()
+            myinput.send_keys(i+2)
+            myinput.send_keys(Keys.ENTER)
 
             while True:
                 try:
@@ -105,10 +122,14 @@ for each in tqdm(li):
 
         if num == len(df.index):
             df['公司']=each
-            df['代码']=li[each]
+            # df['代码']=li[each]
+            with open('log/log.txt','w') as f:
+                pass
             break
         else:
-            print("应收"+num+','+"实收"+len(df.index))    
+            print("应收"+str(num)+','+"实收"+str(len(df.index)))
+            df.to_csv('log/erroe.csv')
+            input('需手动判断是否重新下载：')
     # df.to_csv(each+'.csv')
     df.to_csv('allAtech.csv', mode='a', header=False)
 browser.quit()
